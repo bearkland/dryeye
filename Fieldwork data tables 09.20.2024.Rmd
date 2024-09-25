@@ -1,0 +1,182 @@
+---
+title: "Fieldwork data tables"
+author: "Mary Bearkland"
+date: "2024-09-20"
+output:
+  html_document: default
+  pdf_document: default
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+```{r}
+if (!require("BiocManager", quietly = TRUE))
+    install.packages("BiocManager")
+BiocManager::install(c("devtools", "tidyverse", "kableExtra"))
+BiocManager::install(c("waldronlab/bugSigSimple", "waldronlab/BugSigDBStats", "waldronlab/bugsigdbr"))
+```
+```{r}
+suppressPackageStartupMessages({
+  library(bugSigSimple)
+  library(BugSigDBStats)
+  library(bugsigdbr)
+  library(tidyverse)
+  library(stringr)
+  library(kableExtra)
+  library(dplyr)
+  library(magrittr)
+  library(boot)
+})
+```
+use version="devel" and cache = FALSE to take the latest version from bugsigdb.org
+```{r}
+dat <- bugsigdbr::importBugSigDB(version = "devel", cache = FALSE) 
+dim(dat)
+```
+
+```{r}
+names(dat)
+```
+Subset to include only PMID numbers of interest
+```{r}
+included.pmid <-
+  c(
+    31463790,
+    32931939,
+    37586456, 
+    37762390,
+    34900990,
+    37803284,
+    31738825,
+    35350577,
+    37026303,
+    32694705
+  )
+subset.dat <-
+  dat[dat$PMID %in% included.pmid,] 
+```
+```{r}
+dim(subset.dat)
+```
+```{r}
+View(subset.dat)
+```
+
+```{r}
+unique(subset.dat$`Group 0 name`)
+```
+```{r}
+unique(subset.dat$`Group 1 name`)
+```
+
+Final subset to include only those Group 0 names of interest (controls) and only those Group 1 names of interest (some variation on DED)
+
+```{r}
+subset.final <- subset.dat[which(subset.dat$`Group 0 name` %in% c("Healthy Control", "Control", "control", "healthy controls", "Normal Control (NC)","Healthy control", "Normal Control", "Healthy Controls","Normal healthy (NDM) children")& subset.dat$`Group 1 name`%in% c("Meibomian Gland Dysfunction + Lacrimal Dysfunction", "Meibomian Gland Dysfunction", "Dry Eye","ADDE", "DED patients", "MGD", "Meibomian Gland Dysfunction (MGD)", "Meibomian Gland Dysfunction (MGD) DED", "Mixed DED", "Sjogrens Syndrome Dry Eye (SSDE)", "Non Sjogrens Syndrome Dry Eye (NSSDE)", "Dry Eye Disease patients", "Sjogren's patients with Dry Eye Disease", "Dry Eye Disease patients without Sjogrens", "Diabetic children with Dry Eye Disease")),] 
+View(subset.final)
+```
+Confirm studies remaining
+
+```{r}
+select(subset.final, all_of(c("PMID", "Source", "Group 0 name", "Group 1 name", "Abundance in Group 1")))
+```
+These are the studies included in the review
+
+```{r}
+bugSigSimple::createStudyTable(subset.final)|> kableExtra::kbl()
+```
+
+```{r}
+install.packages("kableExtra")
+```
+```{r}
+library(kableExtra)
+```
+This table summarizes the results for the top n most frequently identified taxa.
+```{r}
+kable_styling(kbl(bugSigSimple::createTaxonTable(subset.final, n = 20)))
+```
+
+```{r}
+bugSigSimple::createTaxonTable(subset.final, n = 20)
+```
+```{r}
+getMostFrequentTaxa(subset.final, n = 50)
+```
+
+
+```{r}
+getMostFrequentTaxa(subset.final, direction = "UP")
+```
+```{r}
+getMostFrequentTaxa(subset.final, direction = "DOWN")
+```
+```{r}
+install.packages("ontologyIndex")
+```
+```{r}
+efo<-getOntology("efo")
+efo
+```
+```{r}
+getMostFrequentTaxa(subset.final, direction = "DOWN")
+```
+```{r}
+View(subset.final)
+```
+```{r}
+getMostFrequentTaxa(subset.final, sig.type = "decreased")
+```
+```{r}
+mostfreqdec<-getMostFrequentTaxa(subset.final, n=15,sig.type = "decreased")
+```
+
+
+```{r}
+View(mostfreqdec)
+```
+```{r}
+mostfreqinc<-getMostFrequentTaxa(subset.final,n=15, sig.type = "increased")
+View(mostfreqinc)
+```
+
+Create study Table 1
+```{r}
+createstudytable1 <- function (subset.dat)
+
+{
+
+  studies <- data.frame(Study = paste0(str_extract(subset.dat$Authors,
+
+                                                   "[A-Za-z]+[:space:]"), subset.dat$Year), Condition = subset.dat$Condition,
+
+                        Cases = subset.dat$`Group 1 sample size`, Controls = subset.dat$`Group 0 sample size`,
+
+                        `Study Design` = subset.dat$`Study design`, PMID = subset.dat$PMID, Country=subset.dat$`Location of subjects`,
+
+                        `Body Site` = subset.dat$`Body site`, `Sequencing Type`=subset.dat$`Sequencing type`)
+
+  studies %>% group_by(Study) %>% summarize(Condition = first(Condition),
+
+                                            Cases = max(Cases), Controls = max(Controls), `Study Design` = first(Study.Design),
+
+                                            PMID = toString(first(PMID)), Country=first(Country), `Body Site` = first(`Body.Site`),
+
+                                            `Sequencing Type`=first(`Sequencing.Type`))
+
+}
+```
+
+
+```{r}
+view(createstudytable1(subset.dat))
+```
+
+
+
+
+
+
+
+
